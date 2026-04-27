@@ -15,6 +15,16 @@ interface CandidateDrawerProps {
   onClose: () => void;
 }
 
+function scorePillClass(score: number) {
+  if (score >= 80) {
+    return "bg-emerald-50 text-emerald-700";
+  }
+  if (score >= 50) {
+    return "bg-amber-50 text-amber-800";
+  }
+  return "bg-red-50 text-red-700";
+}
+
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const first = parts[0]?.[0] ?? "";
@@ -64,7 +74,11 @@ export function CandidateDrawer({
 
         <div className="px-5 pt-4">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${scorePillClass(
+                candidate.score,
+              )}`}
+            >
               <Star className="h-3.5 w-3.5" />
               {candidate.score}
             </span>
@@ -101,35 +115,6 @@ export function CandidateDrawer({
             ) : null}
           </div>
 
-          <div className="mt-5 border-b border-zinc-200">
-            <div className="flex gap-2 text-sm">
-              <button
-                type="button"
-                className="border-b-2 border-indigo-600 px-2 pb-3 font-medium text-indigo-700"
-              >
-                Overview
-              </button>
-              <button
-                type="button"
-                className="px-2 pb-3 font-medium text-zinc-600 hover:text-zinc-900"
-              >
-                Skills
-              </button>
-              <button
-                type="button"
-                className="px-2 pb-3 font-medium text-zinc-600 hover:text-zinc-900"
-              >
-                Notes
-              </button>
-              <button
-                type="button"
-                className="px-2 pb-3 font-medium text-zinc-600 hover:text-zinc-900"
-              >
-                Activity
-              </button>
-            </div>
-          </div>
-
           <div className="mt-4">
             <div className="text-sm font-semibold text-zinc-900">Bio</div>
             <p className="mt-1 text-sm leading-6 text-zinc-700">{candidate.bio}</p>
@@ -147,37 +132,6 @@ export function CandidateDrawer({
                 </span>
               ))}
             </div>
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                <FileText className="h-4 w-4 text-zinc-500" />
-                Resume
-              </div>
-              <a
-                href={candidate.resumeUrl ?? "#"}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-              >
-                View
-              </a>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <button
-              type="button"
-              className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-            >
-              Add Note
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 shadow-sm transition hover:bg-zinc-50"
-            >
-              Close
-            </button>
           </div>
         </div>
       </aside>

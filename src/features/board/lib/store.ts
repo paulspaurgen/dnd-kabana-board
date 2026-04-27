@@ -76,10 +76,24 @@ export const boardStore = () => {
     },
   });
 
+  let previousCandidates = store.getState().board.candidates;
+  let saveTimeoutId: number | null = null;
+
   store.subscribe(() => {
-    saveState("board", {
-      candidates: store.getState().board.candidates,
-    });
+    const candidates = store.getState().board.candidates;
+    if (candidates === previousCandidates) {
+      return;
+    }
+
+    previousCandidates = candidates;
+    if (saveTimeoutId !== null) {
+      window.clearTimeout(saveTimeoutId);
+    }
+
+    saveTimeoutId = window.setTimeout(() => {
+      saveTimeoutId = null;
+      saveState("board", { candidates });
+    }, 0);
   });
 
   return store;

@@ -1,5 +1,6 @@
 import { createSelector } from "@reduxjs/toolkit";
 
+import { STAGES } from "../constants/stages";
 import type { Candidate, Filters, Stage } from "./types";
 
 interface BoardState {
@@ -17,7 +18,7 @@ interface RootState {
 
 const selectBoardState = (state: RootState) => state.board;
 
-const selectCandidates = createSelector(
+export const selectCandidates = createSelector(
   [selectBoardState],
   (board) => board.candidates,
 );
@@ -26,11 +27,6 @@ export const selectFilters = createSelector(
   [selectBoardState],
   (board) => board.filters,
 );
-
-export const selectCandidatesByStage = (stage: Stage) =>
-  createSelector([selectFilteredCandidates], (candidates) =>
-    candidates.filter((candidate) => candidate.stage === stage),
-  );
 
 export const selectFilteredCandidates = createSelector(
   [selectCandidates, selectFilters],
@@ -50,6 +46,31 @@ export const selectFilteredCandidates = createSelector(
     }),
 );
 
+export const selectFilteredCandidatesByStage = createSelector(
+  [selectFilteredCandidates],
+  (candidates) => {
+    const groupedCandidates = STAGES.reduce(
+      (accumulator, stage) => {
+        accumulator[stage] = [];
+        return accumulator;
+      },
+      {} as Record<Stage, Candidate[]>,
+    );
+
+    candidates.forEach((candidate) => {
+      groupedCandidates[candidate.stage]?.push(candidate);
+    });
+
+    return groupedCandidates;
+  },
+);
+
+export const selectCandidatesByStage = (stage: Stage) =>
+  createSelector(
+    [selectFilteredCandidatesByStage],
+    (candidatesByStage) => candidatesByStage[stage] ?? [],
+  );
+
 export const selectSidebarState = (state: RootState) => state.sidebar;
 
 export const selectIsSidebarOpen = createSelector(
@@ -60,4 +81,12 @@ export const selectIsSidebarOpen = createSelector(
 export const selectSelectedCandidateId = createSelector(
   [selectSidebarState],
   (sidebar) => sidebar.selectedCandidateId,
+);
+
+export const selectSelectedCandidate = createSelector(
+  [selectCandidates, selectSelectedCandidateId],
+  (candidates, selectedCandidateId) =>
+    selectedCandidateId
+      ? candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null
+      : null,
 );

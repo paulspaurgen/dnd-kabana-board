@@ -1,28 +1,80 @@
 "use client";
 
-import { DndContext } from "@dnd-kit/core";
 import { RotateCcw } from "lucide-react";
 
 import { STAGES } from "../constants/stages";
-import { useBoard } from "../hooks/useBoard";
+import { useCandidateMover, useSidebar, useUndo } from "../hooks/useBoard";
 import { Providers } from "../lib/providers";
 import { Snackbar } from "@/src/components/ui/Snackbar";
 import { CandidateDrawer } from "./CandidateDrawer";
-import { Column } from "./Column";
+import Column from "./Column";
 import { FilterBar } from "./FilterBar";
 
-function BoardComponent() {
-  const {
-    handleDragEnd,
-    selectedCandidate,
-    isSidebarOpen,
-    closeSidebar,
-    canUndo,
-    undoLastMove,
-    errorMessage,
-    clearError,
-  } = useBoard();
+function UndoBar() {
+  const { canUndo, undoLastMove } = useUndo();
 
+  return (
+    <div className="mb-4 flex items-center justify-end gap-2">
+      <button
+        type="button"
+        onClick={undoLastMove}
+        disabled={!canUndo}
+        className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <RotateCcw className="h-4 w-4" />
+        Undo
+      </button>
+    </div>
+  );
+}
+
+function BoardMoverArea() {
+  const { moveCandidateToStage, errorMessage, clearError } = useCandidateMover();
+
+  return (
+    <>
+      <Snackbar
+        open={Boolean(errorMessage)}
+        message={errorMessage ?? ""}
+        onClose={clearError}
+        variant="error"
+        autoHideDurationMs={4500}
+      />
+
+      <div className="rounded-2xl border border-zinc-200 bg-white/60 p-3 shadow-sm backdrop-blur">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {STAGES.map((stage) => (
+            <Column key={stage} stage={stage} onCandidateDrop={moveCandidateToStage} />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BoardDrawer() {
+  const { selectedCandidate, isSidebarOpen, closeSidebar } = useSidebar();
+
+  return (
+    <CandidateDrawer
+      candidate={selectedCandidate}
+      isOpen={isSidebarOpen}
+      onClose={closeSidebar}
+    />
+  );
+}
+
+function BoardContent() {
+  return (
+    <>
+      <UndoBar />
+      <BoardMoverArea />
+      <BoardDrawer />
+    </>
+  );
+}
+
+function BoardComponent() {
   return (
     <main className="w-full px-4 py-4 md:px-6">
       <div className="w-full">
@@ -35,46 +87,11 @@ function BoardComponent() {
               Drag and drop candidates between stages
             </p>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={undoLastMove}
-              disabled={!canUndo}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Undo
-            </button>
-          </div>
         </header>
 
         <FilterBar />
 
-        <Snackbar
-          open={Boolean(errorMessage)}
-          message={errorMessage ?? ""}
-          onClose={clearError}
-          variant="error"
-          autoHideDurationMs={4500}
-        />
-
-      <DndContext onDragEnd={handleDragEnd}>
-        <div className="rounded-2xl border border-zinc-200 bg-white/60 p-3 shadow-sm backdrop-blur">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-            {STAGES.map((stage) => (
-              <Column key={stage} stage={stage} />
-            ))}
-          </div>
-        </div>
-      </DndContext>
-
-
-        <CandidateDrawer
-        candidate={selectedCandidate}
-        isOpen={isSidebarOpen}
-        onClose={closeSidebar}
-      />
+        <BoardContent />
       </div>
     </main>
   );

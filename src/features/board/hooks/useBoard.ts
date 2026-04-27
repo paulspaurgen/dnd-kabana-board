@@ -1,55 +1,82 @@
 "use client";
 
-import type { DragEndEvent } from "@dnd-kit/core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useBoardDispatch, useBoardSelector } from "../lib/hooks";
 import { moveCandidate, undoMove } from "../store/boardSlice";
 import { closeCandidateSidebar } from "../store/sidebarSlice";
 import {
-  selectFilteredCandidates,
   selectIsSidebarOpen,
-  selectSelectedCandidateId,
+  selectSelectedCandidate,
 } from "../store/selectors";
 import type { Stage } from "../store/types";
 
-export function useBoard() {
+const simulateMoveApi = () =>
+  new Promise<void>((resolve, reject) => {
+    window.setTimeout(() => {
+      const shouldFail = Math.random() < 0.2;
+      if (shouldFail) {
+        reject(new Error("Failed to update candidate stage. Move reverted."));
+        return;
+      }
+
+      resolve();
+    }, 300);
+  });
+
+export function useCandidateMover() {
   const dispatch = useBoardDispatch();
-  const candidates = useBoardSelector(selectFilteredCandidates);
-  const selectedCandidateId = useBoardSelector(selectSelectedCandidateId);
-  const isSidebarOpen = useBoardSelector(selectIsSidebarOpen);
-  const canUndo = useBoardSelector((state) => state.board.lastAction !== null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const pendingMoveRef = useRef(false);
 
-  const selectedCandidate = useMemo(
-    () =>
-      selectedCandidateId
-        ? candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null
-        : null,
-    [candidates, selectedCandidateId],
-  );
-
-  const simulateMoveApi = () =>
-    new Promise<void>((resolve, reject) => {
-      window.setTimeout(() => {
-        const shouldFail = Math.random() < 0.2;
-        if (shouldFail) {
-          reject(new Error("Failed to update candidate stage. Move reverted."));
+  return {
+    moveCandidateToStage: useCallback(
+      async (candidateId: string, fromStage: Stage, toStage: Stage) => {
+        if (
+          pendingMoveRef.current ||
+          !candidateId ||
+          !fromStage ||
+          !toStage ||
+          fromStage === toStage
+        ) {
           return;
         }
 
-        resolve();
-      }, 300);
-    });
+        // Avoid re-rendering on every successful move when error is already clear.
+        setErrorMessage((prev) => (prev === null ? prev : null));
+        pendingMoveRef.current = true;
+        dispatch(moveCandidate({ id: candidateId, toStage }));
 
-  const runUndo = useCallback(() => {
-    if (!canUndo || pendingMoveRef.current) {
+        try {
+          await simulateMoveApi();
+        } catch (error) {
+          dispatch(undoMove());
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Failed to update candidate stage. Move reverted.",
+          );
+        } finally {
+          pendingMoveRef.current = false;
+        }
+      },
+      [dispatch],
+    ),
+    errorMessage,
+    clearError: () => setErrorMessage(null),
+  };
+}
+
+export function useUndo() {
+  const dispatch = useBoardDispatch();
+  const canUndo = useBoardSelector((state) => state.board.lastAction !== null);
+
+  const undoLastMove = useCallback(() => {
+    if (!canUndo) {
       return;
     }
 
     dispatch(undoMove());
-    setErrorMessage(null);
   }, [canUndo, dispatch]);
 
   useEffect(() => {
@@ -62,58 +89,36 @@ export function useBoard() {
       }
 
       event.preventDefault();
-      runUndo();
+      undoLastMove();
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [runUndo]);
+  }, [undoLastMove]);
 
-  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
-    const candidateId = active.data.current?.candidateId as string | undefined;
-    const fromStage = active.data.current?.stage as Stage | undefined;
-    const toStage = (over?.data.current?.stage ?? over?.id) as Stage | undefined;
+  return { canUndo, undoLastMove };
+}
 
-    if (
-      pendingMoveRef.current ||
-      !candidateId ||
-      !fromStage ||
-      !toStage ||
-      fromStage === toStage
-    ) {
-      return;
-    }
-
-    setErrorMessage(null);
-    pendingMoveRef.current = true;
-    dispatch(moveCandidate({ id: candidateId, toStage }));
-
-    try {
-      await simulateMoveApi();
-    } catch (error) {
-      dispatch(undoMove());
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to update candidate stage. Move reverted.",
-      );
-    } finally {
-      pendingMoveRef.current = false;
-    }
-  };
+export function useSidebar() {
+  const dispatch = useBoardDispatch();
+  const selectedCandidate = useBoardSelector(selectSelectedCandidate);
+  const isSidebarOpen = useBoardSelector(selectIsSidebarOpen);
 
   const closeSidebar = () => {
     dispatch(closeCandidateSidebar());
   };
 
+  return { selectedCandidate, isSidebarOpen, closeSidebar };
+}
+
+export function useBoard() {
+  const mover = useCandidateMover();
+  const undo = useUndo();
+  const sidebar = useSidebar();
+
   return {
-    handleDragEnd,
-    selectedCandidate,
-    isSidebarOpen,
-    closeSidebar,
-    canUndo,
-    undoLastMove: runUndo,
-    errorMessage,
-    clearError: () => setErrorMessage(null),
+    ...mover,
+    ...undo,
+    ...sidebar,
   };
 }

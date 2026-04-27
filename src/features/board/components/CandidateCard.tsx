@@ -1,13 +1,38 @@
-import { useDraggable } from "@dnd-kit/core";
-import { useRef } from "react";
 import { Briefcase, MapPin } from "lucide-react";
-
+import { memo } from "react";
 import { useBoardDispatch } from "../lib/hooks";
 import { openCandidateSidebar } from "../store/sidebarSlice";
 import type { Candidate } from "../store/types";
 
 interface CandidateCardProps {
   candidate: Candidate;
+}
+
+const CANDIDATE_DRAG_TYPE = "application/x-kabana-candidate";
+
+export interface CandidateDragPayload {
+  candidateId: string;
+  fromStage: Candidate["stage"];
+}
+
+export function hasCandidateDragPayload(dataTransfer: DataTransfer) {
+  return Array.from(dataTransfer.types).includes(CANDIDATE_DRAG_TYPE);
+}
+
+export function parseCandidateDragPayload(
+  dataTransfer: DataTransfer,
+): CandidateDragPayload | null {
+  const serializedPayload = dataTransfer.getData(CANDIDATE_DRAG_TYPE);
+  if (!serializedPayload) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(serializedPayload) as CandidateDragPayload;
+    return payload.candidateId && payload.fromStage ? payload : null;
+  } catch {
+    return null;
+  }
 }
 
 function initials(name: string) {
@@ -17,48 +42,39 @@ function initials(name: string) {
   return (first + last).toUpperCase();
 }
 
-export function CandidateCard({ candidate }: CandidateCardProps) {
-  const dispatch = useBoardDispatch();
-  const pointerDownRef = useRef<{ x: number; y: number } | null>(null);
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: candidate.id,
-    data: {
-      candidateId: candidate.id,
-      stage: candidate.stage,
-    },
-  });
+function scorePillClass(score: number) {
+  if (score >= 80) {
+    return "bg-emerald-50 text-emerald-700";
+  }
+  if (score >= 50) {
+    return "bg-amber-50 text-amber-800";
+  }
+  return "bg-red-50 text-red-700";
+}
 
-  const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-  };
+function CandidateCard({ candidate }: CandidateCardProps) {
+  const dispatch = useBoardDispatch();
 
   return (
     <article
-      ref={setNodeRef}
-      style={style}
-      className={`cursor-grab select-none rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition hover:shadow-md active:cursor-grabbing ${
-        isDragging ? "opacity-80 shadow-md ring-2 ring-indigo-200" : ""
-      } touch-none`}
-      onPointerDownCapture={(event) => {
-        pointerDownRef.current = { x: event.clientX, y: event.clientY };
+      draggable
+      className="cursor-grab select-none rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing data-[dragging=true]:opacity-40 data-[dragging=true]:shadow-none"
+      onClick={() => dispatch(openCandidateSidebar(candidate.id))}
+      onDragStart={(event) => {
+        event.currentTarget.dataset.dragging = "true";
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", candidate.id);
+        event.dataTransfer.setData(
+          CANDIDATE_DRAG_TYPE,
+          JSON.stringify({
+            candidateId: candidate.id,
+            fromStage: candidate.stage,
+          } satisfies CandidateDragPayload),
+        );
       }}
-      onPointerUpCapture={(event) => {
-        const startPoint = pointerDownRef.current;
-        pointerDownRef.current = null;
-        if (!startPoint) {
-          return;
-        }
-
-        const movedX = Math.abs(event.clientX - startPoint.x);
-        const movedY = Math.abs(event.clientY - startPoint.y);
-        const clickTolerance = 4;
-
-        if (movedX <= clickTolerance && movedY <= clickTolerance) {
-          dispatch(openCandidateSidebar(candidate.id));
-        }
+      onDragEnd={(event) => {
+        delete event.currentTarget.dataset.dragging;
       }}
-      {...listeners}
-      {...attributes}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -73,7 +89,11 @@ export function CandidateCard({ candidate }: CandidateCardProps) {
           </div>
         </div>
 
-        <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-emerald-50 px-2 text-xs font-semibold text-emerald-700">
+        <span
+          className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs font-semibold ${scorePillClass(
+            candidate.score,
+          )}`}
+        >
           {candidate.score}
         </span>
       </div>
@@ -104,3 +124,5 @@ export function CandidateCard({ candidate }: CandidateCardProps) {
     </article>
   );
 }
+
+export default memo(CandidateCard);
